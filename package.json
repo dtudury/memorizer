@@ -1,0 +1,23 @@
+{
+  "name": "memorizer",
+  "version": "0.0.0",
+  "description": "basic spaced repetition thing",
+  "scripts": {
+    "start": "source .env && turtledb-com  -i -o turtledb.com -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https",
+    "offline": "source .env && turtledb-com -i -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https",
+    "test": "npx turtledb-com test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dtudury/turtledb.chat.git"
+  },
+  "author": "David Tudury <david.tudury@gmail.com>",
+  "license": "GPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/dtudury/turtledb.chat/issues"
+  },
+  "homepage": "https://github.com/dtudury/turtledb.chat#readme",
+  "dependencies": {
+    "turtledb-com": "^0.2.9"
+  }
+}
