@@ -12,13 +12,14 @@ import { webSocketMuxFactory } from '../cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gd
  */
 
 const name = 'memorizer'
-const publicKey = window.location.pathname.match(/\/([0-9a-z]*)\//)?.[1]
+const publicKey = window.location.pathname.match(/\/([0-9a-z]*)\//)?.[1] || 'go7chdkcej6oy97j8dynrsskiqqla411elezocgmilmety5qkn' 
 const recaller = new Recaller(name)
 let renderer = render(document.body, h`
   <p>connecting...</p>
 `, recaller, 'connecting')
 
 const turtleDB = new TurtleDB(name, recaller)
+const memorizerTB = await turtleDB.summonBoundTurtleBranch(publicKey)
 window.turtleDB = turtleDB
 window.Signer = Signer
 /** @type {Workspace} */
@@ -29,9 +30,7 @@ const members = {
 
 webSocketMuxFactory(turtleDB, async tbMux => {
   recaller.unwatch(renderer)
-  const state = proxyWithRecaller({
-    loggedIn: false
-  }, recaller)
+  const state = proxyWithRecaller({}, recaller)
   const copyPublicKey = (el, e) => {
     navigator.clipboard.writeText(state.publicKey)
   }
@@ -53,47 +52,44 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const password = formData.get('password')
     const turtlename = formData.get('turtlename') || name
     const signer = new Signer(username, password)
-    workspace = await turtleDB.makeWorkspace(signer, turtlename)
     const {publicKey} = await signer.makeKeysFor(turtlename)
+    console.log(publicKey)
+    state.workspace = await turtleDB.makeWorkspace(signer, turtlename)
+    console.log(state.workspace)
     state.publicKey = publicKey
-    state.loggedIn = true
-    state.memberTurtles = await Promise.all(Object.keys(members).map(async publicKey => {
-      const turtleBranch = await turtleDB.summonBoundTurtleBranch(publicKey, members[publicKey])
-      return { turtleBranch, publicKey, name: members[publicKey] }
-    }))
   }
-  const sortedMessages = el => {
-    if (!state.memberTurtles) return null
-    let allMessages = []
-    for (const memberTurtle of state.memberTurtles) {
-      allMessages = allMessages.concat((memberTurtle.turtleBranch.lookup('document', 'value', 'messages') ?? []).map(message => {
-        if (typeof message === 'object') message.name = memberTurtle.name
-        return message
-      }))
+  const sortedStates = el => {
+    let history = state.workspace.lookup('document', 'value', 'history')
+    if (!history) {
+      const states = JSON.parse(memorizerTB.lookup('document', 'value', 'fs', 'states.json'))
+      console.log(history)
     }
-    allMessages.sort((a, b) => a.ts - b.ts)
-    return allMessages.map(({message, ts, name}) => h`
-      <div>
-        [${ts?.toLocaleTimeString?.()}]
-        ${name}: ${message} 
-      </div>
-    `)
+    // state.workspace.lookup('document', )
+    // const now = Date.now()
+    // Object.keys(history).map(code => {
+
+    // })
+
+    // for (const memberTurtle of state.memberTurtles) {
+    //   allMessages = allMessages.concat((memberTurtle.turtleBranch.lookup('document', 'value', 'messages') ?? []).map(message => {
+    //     if (typeof message === 'object') message.name = memberTurtle.name
+    //     return message
+    //   }))
+    // }
+    // allMessages.sort((a, b) => a.ts - b.ts)
+    // return allMessages.map(({message, ts, name}) => h`
+    //   <div>
+    //     [${ts?.toLocaleTimeString?.()}]
+    //     ${name}: ${message} 
+    //   </div>
+    // `)
   }
   renderer = render(document.body, h`
     <p>connected</p>
-    <div>
-    ${sortedMessages}
-    </div>
-    ${showIfElse(() => state.loggedIn, h`
-      <button onclick=${handle(copyPublicKey)}>${() => state.publicKey} ✂</button>
-      <form onsubmit=${handle(send)}>
-        <div>
-          <input type="text" id="message" name="message" placeholder="type here" autocomplete="off" required />
-          <label for="message">message</label>
-        </div>
-
-        <input type="submit" value="Send" />
-      </form>
+    ${showIfElse(() => !!state.workspace, h`
+      <div>
+      ${sortedStates}
+      </div>
     `, h`
       <form onsubmit=${handle(signIn)}>
         <div>

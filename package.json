@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/dtudury/turtledb.chat#readme",
   "dependencies": {
-    "turtledb-com": "^0.2.9"
+    "turtledb-com": "^0.2.10"
   }
 }
