@@ -12,15 +12,16 @@ import { webSocketMuxFactory } from '../cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gd
  */
 
 const name = 'memorizer'
-const publicKey = window.location.pathname.match(/\/([0-9a-z]*)\//)?.[1] || 'go7chdkcej6oy97j8dynrsskiqqla411elezocgmilmety5qkn' 
+const publicKey = window.location.pathname.match(/\/([0-9a-z]*)\//)?.[1] || 'juu2u25yqod1ticwiwnpujtaishju3msefvy79oiti00d8xir0' 
 const recaller = new Recaller(name)
 let renderer = render(document.body, h`
   <p>connecting...</p>
 `, recaller, 'connecting')
 
 const turtleDB = new TurtleDB(name, recaller)
-const memorizerTB = await turtleDB.summonBoundTurtleBranch(publicKey)
+console.log('setting turtleDB')
 window.turtleDB = turtleDB
+console.log('set turtleDB', window.turtleDB)
 window.Signer = Signer
 /** @type {Workspace} */
 let workspace
@@ -29,6 +30,12 @@ const members = {
 }
 
 webSocketMuxFactory(turtleDB, async tbMux => {
+  console.log(publicKey)
+  const memorizerTB = await turtleDB.summonBoundTurtleBranch(publicKey)
+  console.log(memorizerTB)
+  console.log(memorizerTB.lookup())
+  await new Promise(resolve => setTimeout(resolve, 1000))
+  console.log(memorizerTB.lookup())
   recaller.unwatch(renderer)
   const state = proxyWithRecaller({}, recaller)
   const copyPublicKey = (el, e) => {
@@ -53,16 +60,16 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const turtlename = formData.get('turtlename') || name
     const signer = new Signer(username, password)
     const {publicKey} = await signer.makeKeysFor(turtlename)
-    console.log(publicKey)
     state.workspace = await turtleDB.makeWorkspace(signer, turtlename)
     console.log(state.workspace)
     state.publicKey = publicKey
   }
   const sortedStates = el => {
     let history = state.workspace.lookup('document', 'value', 'history')
+    console.log({history})
     if (!history) {
-      const states = JSON.parse(memorizerTB.lookup('document', 'value', 'fs', 'states.json'))
-      console.log(history)
+      const states = memorizerTB.lookup()
+      console.log(states)
     }
     // state.workspace.lookup('document', )
     // const now = Date.now()
