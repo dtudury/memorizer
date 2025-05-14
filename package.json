@@ -4,8 +4,8 @@
   "description": "basic spaced repetition thing",
   "scripts": {
     "start": "source .env && turtledb-com  -i -o turtledb.com --web-fallback cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https",
-    "offline": "source .env && turtledb-com -i -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https",
-    "test": "npx turtledb-com test"
+    "dev": "source .env && turtledb-com -i -o localhost --web-fallback cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https",
+    "offline": "source .env && turtledb-com -i -k cv6t981m0a2ou7fil4f88ujf6kpj2lojceycv1gdcq23wlzqi2 --disable-s3 --username \"$TURTLEDB_USERNAME\" --password \"$TURTLEDB_PASSWORD\" -n memorizer -p 8888 -w memorizer --insecure --https"
   },
   "repository": {
     "type": "git",
@@ -18,6 +18,6 @@
   },
   "homepage": "https://github.com/dtudury/turtledb.chat#readme",
   "dependencies": {
-    "turtledb-com": "^0.2.12"
+    "turtledb-com": "^0.2.13"
   }
 }

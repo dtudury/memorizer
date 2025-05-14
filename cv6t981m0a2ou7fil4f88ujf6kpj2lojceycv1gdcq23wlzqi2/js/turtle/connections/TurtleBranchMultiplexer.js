@@ -23,12 +23,11 @@ export class TurtleBranchMultiplexer extends TurtleTalker {
     super(name, Xours, recaller)
     this.turtleDB = turtleDB
     this.outgoingDictionary = new TurtleDictionary(`TurtleBranchMultiplexer"${name}".outgoingDictionary`, recaller)
-    turtleDB.getPublicKeys().forEach(publicKey => {
-      turtleDB.getStatus(publicKey).turtleBranchPromise.then(turtleBranch => {
-        this.getTurtleBranchUpdater(turtleBranch.name, publicKey, turtleBranch)
-      })
-    })
-    // this.outgoingDictionary.u8aTurtleGenerator()
+    // turtleDB.getPublicKeys().forEach(publicKey => {
+    //   turtleDB.getStatus(publicKey).turtleBranchPromise.then(turtleBranch => {
+    //     this.getTurtleBranchUpdater(turtleBranch.name, publicKey, turtleBranch)
+    //   })
+    // })
     this.appendGeneratedIncomingForever() // don't await
   }
 
@@ -82,6 +81,7 @@ export class TurtleBranchMultiplexer extends TurtleTalker {
       this.#updatersByCpk[publicKey] = (async () => {
         // console.log({ publicKey })
         turtleBranch ??= await this.turtleDB.summonBoundTurtleBranch(publicKey, name)
+        // turtleBranch ??= this.turtleDB.getStatus(publicKey, name).turtleBranch
         const updater = new TurtleBranchUpdater(name, turtleBranch, publicKey, this.Xours)
         ;(async () => {
           for await (const u8aTurtle of updater.outgoingBranch.u8aTurtleGenerator()) {

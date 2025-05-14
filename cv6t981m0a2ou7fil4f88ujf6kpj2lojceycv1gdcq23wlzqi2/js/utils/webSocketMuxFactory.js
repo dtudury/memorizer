@@ -4,6 +4,7 @@ import { TurtleBranchMultiplexer } from '../turtle/connections/TurtleBranchMulti
 /**
  * @typedef {import('../turtle/connections/TurtleDB.js').TurtleDB} TurtleDB
  * @typedef {import('./Recaller.js').Recaller} Recaller
+ * @typedef {import('../turtle/connections/TurtleDB.js').TurtleBranchStatus} TurtleBranchStatus
  */
 
 const allServiceWorkers = new Set()
@@ -36,12 +37,13 @@ export async function webSocketMuxFactory (turtleDB, callback, recaller = turtle
     const { active } = await serviceWorker.ready
     allServiceWorkers.add(serviceWorker)
     const tbMux = new TurtleBranchMultiplexer('serviceWorker', false, turtleDB, recaller)
-    const tbMuxBinding = async status => {
+    // callback(tbMux)
+    const tbMuxBinding = async (/** @type {TurtleBranchStatus} */ status) => {
       console.log(' ^^^^^^^ tbMuxBinding about to get next')
       const updater = await tbMux.getTurtleBranchUpdater(status.turtleBranch.name, status.publicKey, status.turtleBranch)
-      console.log(' ^^^^^^^ tbMuxBinding about to await settle', { updater })
+      console.log('updater about to await settle', updater.name)
       await updater.settle
-      console.log(' ^^^^^^^ tbMuxBinding settled')
+      console.log('updater settled')
     }
     turtleDB.bind(tbMuxBinding)
     serviceWorker.onmessage = event => {
@@ -66,12 +68,12 @@ export async function webSocketMuxFactory (turtleDB, callback, recaller = turtle
     for (const publicKey of turtleDB.getPublicKeys()) {
       await tbMux.getTurtleBranchUpdater(publicKey)
     }
-    const tbMuxBinding = async status => {
+    const tbMuxBinding = async (/** @type {TurtleBranchStatus} */ status) => {
       // console.log(' ^^^^^^^ tbMuxBinding about to get next', { publicKey })
       const updater = await tbMux.getTurtleBranchUpdater(status.turtleBranch.name, status.publicKey, status.turtleBranch)
-      // console.log(' ^^^^^^^ tbMuxBinding about to await settle', { updater })
+      console.log('updater about to await settle', updater.name)
       await updater.settle
-      // console.log(' ^^^^^^^ tbMuxBinding', { publicKey })
+      console.log('updater settled')
     }
     turtleDB.bind(tbMuxBinding)
     let connectionIndex

@@ -23,21 +23,14 @@ console.log('setting turtleDB')
 window.turtleDB = turtleDB
 console.log('set turtleDB', window.turtleDB)
 window.Signer = Signer
-/** @type {Workspace} */
-let workspace
-
-const members = {
-}
 
 webSocketMuxFactory(turtleDB, async tbMux => {
   console.log(publicKey)
   const memorizerTB = await turtleDB.summonBoundTurtleBranch(publicKey)
-  console.log(memorizerTB)
-  console.log(memorizerTB.lookup())
-  await new Promise(resolve => setTimeout(resolve, 1000))
-  console.log(memorizerTB.lookup())
+  const states = JSON.parse(memorizerTB.lookup('document', 'value', 'fs', 'states.json'))
   recaller.unwatch(renderer)
   const state = proxyWithRecaller({}, recaller)
+  /*
   const copyPublicKey = (el, e) => {
     navigator.clipboard.writeText(state.publicKey)
   }
@@ -47,10 +40,12 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     el.reset()
     const message = formData.get('message')
     const messagesState = workspace.committedBranch.lookup('document', 'value') || {}
-    messagesState.messages ??= []
-    messagesState.messages.push({ message, ts: new Date() })
+    messagesState.history ??= []
+    messagesState.history.push({ message, ts: new Date() })
     await workspace.commit(messagesState, 'send')
   }
+    */
+
   const signIn = async (e, el) => {
     e.preventDefault()
     const formData = new FormData(el)
@@ -61,61 +56,72 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const signer = new Signer(username, password)
     const {publicKey} = await signer.makeKeysFor(turtlename)
     state.workspace = await turtleDB.makeWorkspace(signer, turtlename)
-    console.log(state.workspace)
     state.publicKey = publicKey
   }
+
+  const getHistory = () => state.workspace.lookup('document', 'value', 'history') || 
+    Object.keys(states).map(abbr => [
+      Object.assign({abbr, history: [], key: 'abbr', id: `${abbr}.abbr`}, states[abbr]),
+      Object.assign({abbr, history: [], key: 'capital', id: `${abbr}.capital`}, states[abbr])
+    ]).flat()
+
   const sortedStates = el => {
-    let history = state.workspace.lookup('document', 'value', 'history')
-    console.log({history})
-    if (!history) {
-      const states = memorizerTB.lookup()
-      console.log(states)
-    }
-    // state.workspace.lookup('document', )
-    // const now = Date.now()
-    // Object.keys(history).map(code => {
-
-    // })
-
-    // for (const memberTurtle of state.memberTurtles) {
-    //   allMessages = allMessages.concat((memberTurtle.turtleBranch.lookup('document', 'value', 'messages') ?? []).map(message => {
-    //     if (typeof message === 'object') message.name = memberTurtle.name
-    //     return message
-    //   }))
-    // }
-    // allMessages.sort((a, b) => a.ts - b.ts)
-    // return allMessages.map(({message, ts, name}) => h`
-    //   <div>
-    //     [${ts?.toLocaleTimeString?.()}]
-    //     ${name}: ${message} 
-    //   </div>
-    // `)
+    const history = getHistory()
+    return h`
+      <ol>
+        ${history.map(({name, key, id}) => {
+          const reveal = (e, el) => { state.revealed = id }
+          return h`
+            <li>
+              <button onclick=${handle(reveal)}>${name} ${key}</button>
+            </li>
+          `
+        })}
+      </ol>
+    `
   }
+
+  const selectedState = el => {
+    if (state.revealed) {
+      const selected = getHistory().find(q => q.id === state.revealed)
+      const unselect = (e, el) => { state.revealed = null}
+      return h`<section id="answer" onclick=${handle(unselect)}>${selected.name} ${selected.key}: ${selected[selected.key]}</section>`
+    } else {
+      const selected = getHistory()[0]
+      const reveal = (e, el) => state.revealed = selected.id
+      return h`<section id="question" onclick=${handle(reveal)}> ${selected.name} ${selected.key}: ???</section>`
+    }
+  }
+
   renderer = render(document.body, h`
-    <p>connected</p>
     ${showIfElse(() => !!state.workspace, h`
-      <div>
-      ${sortedStates}
-      </div>
+      ${selectedState}
+      <details id="questions">
+        <summary>Questions</summary>
+        ${sortedStates}
+      </details>
     `, h`
-      <form onsubmit=${handle(signIn)}>
-        <div>
-          <input type="text" id="username" name="username" placeholder="" autocomplete="off" required />
-          <label for="username">username</label>
-        </div>
+      <section id="signin">
+        <h2>Sign In or Create Your Account</h2>
+        <form onsubmit=${handle(signIn)}>
+          <div>
+            <input type="text" id="username" name="username" placeholder="" autocomplete="off" required autofocus />
+            <label for="username">username</label>
+          </div>
 
-        <div>
-          <input type="password" id="pass" name="password" placeholder="" autocomplete="off" required />
-          <label for="pass">password</label>
-        </div>
+          <div>
+            <input type="password" id="pass" name="password" placeholder="" autocomplete="off" required />
+            <label for="pass">password</label>
+          </div>
 
-        <div>
-          <input type="text" id="turtlename" name="turtlename" placeholder="${name}" autocomplete="off" />
-          <label for="turtlename">turtlename</label>
-        </div>
+          <div>
+            <input type="text" id="turtlename" name="turtlename" placeholder="${name}" autocomplete="off" />
+            <label for="turtlename">turtlename</label>
+          </div>
 
-        <input type="submit" value="Summon Turtle" />
-      </form>
+          <input type="submit" value="Summon Turtle" />
+        </form>
+      </section>
     `)}
   `, recaller, 'home-body')
 })
