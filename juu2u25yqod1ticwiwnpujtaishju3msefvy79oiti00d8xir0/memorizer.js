@@ -30,21 +30,21 @@ webSocketMuxFactory(turtleDB, async tbMux => {
   const states = JSON.parse(memorizerTB.lookup('document', 'value', 'fs', 'states.json'))
   recaller.unwatch(renderer)
   const state = proxyWithRecaller({}, recaller)
-  /*
-  const copyPublicKey = (el, e) => {
-    navigator.clipboard.writeText(state.publicKey)
+
+  const signIntoStatus = async (username, password) => {
+    const signer = new Signer(username, password)
+    const {publicKey} = await signer.makeKeysFor(name)
+    state.workspace = await turtleDB.makeWorkspace(signer, name)
+    state.publicKey = publicKey
+    state.tags = proxyWithRecaller({}, recaller)
+    state.ts = new Date()
   }
-  const send = async (e, el) => {
-    e.preventDefault()
-    const formData = new FormData(el)
-    el.reset()
-    const message = formData.get('message')
-    const messagesState = workspace.committedBranch.lookup('document', 'value') || {}
-    messagesState.history ??= []
-    messagesState.history.push({ message, ts: new Date() })
-    await workspace.commit(messagesState, 'send')
+
+  const signerData = localStorage.getItem('signer')
+  if (signerData) {
+    const {username, password} = JSON.parse(signerData)
+    await signIntoStatus(username, password)
   }
-    */
 
   const signIn = async (e, el) => {
     e.preventDefault()
@@ -52,31 +52,27 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     el.reset()
     const username = formData.get('username')
     const password = formData.get('password')
-    const turtlename = formData.get('turtlename') || name
-    const signer = new Signer(username, password)
-    const {publicKey} = await signer.makeKeysFor(turtlename)
-    state.workspace = await turtleDB.makeWorkspace(signer, turtlename)
-    state.publicKey = publicKey
-    state.tags = proxyWithRecaller({}, recaller)
-    state.ts = new Date()
+    const rememberme = formData.get('rememberme')
+    if (rememberme) localStorage.setItem('signer', JSON.stringify({username, password}))
+    signIntoStatus(username, password)
   }
 
-  const getQuestions = () => state.workspace.lookup('document', 'value', 'questions') || 
+  const getQuestions = () => state.workspace?.lookup?.('document', 'value', 'questions') || 
     [
       ...Object.keys(states).map(abbr => {
         const {name, capital} = states[abbr]
         return [{
-          text: `${name}'s capital`, 
+          text: `${name}'s Capital`, 
           answer: capital, 
           history: [], 
           id: `${abbr}.capital`, 
-          tags: ['capital']
+          tags: ['Capital']
         },{
-          text: `${name}'s abbreviation`, 
+          text: `${name}'s Abbreviation`, 
           answer: abbr, 
           history: [], 
           id: `${abbr}.abbr`, 
-          tags: ['abbreviation']
+          tags: ['Abbreviation']
         }]
       }), 
       ...Array(11).keys().map(i => [
@@ -88,7 +84,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
             answer: x * y, 
             history: [], 
             id: `${x}x${y}`, 
-            tags: ['multiplication']
+            tags: ['Multiplication']
           }
         })
       ])
@@ -106,6 +102,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     if (timePassed > 0.7 * knownTime) return -timePassed / knownTime
     return knownTime / timePassed
   }
+
   const displayHistory = history => {
     if (!history?.length) return
     const lastAnswer = history[history.length - 1]
@@ -117,6 +114,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const timePassed = state.ts - lastAnswer.ts
     return JSON.stringify({knownTime, timePassed, timeLeft: historyToTimeLeft(history)})
   }
+
   const getFilteredSortedQuestion = () => getQuestions().filter(({tags}) => tags.some(tag => !state.tags[tag])).sort((a, b) => {
     return historyToTimeLeft(a.history) - historyToTimeLeft(b.history)
   })
@@ -212,9 +210,23 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     })
   }
 
+  const settings = el => {
+    const signOut = (e, el) => {
+      localStorage.clear()
+      state.workspace = null
+      state.answerShown = null
+    }
+    return h`
+      <button class="signout" onclick=${handle(signOut)}>Sign Out</button>
+    `
+  }
+
   renderer = render(document.body, h`
     ${showIfElse(() => !!state.workspace, h`
+      <header>
       ${tagChooser}
+      ${settings}
+      </header>
       ${selectedState}
       <details id="questions">
         <summary>Questions</summary>
@@ -224,22 +236,14 @@ webSocketMuxFactory(turtleDB, async tbMux => {
       <section id="signin">
         <h2>Sign In or Create Your Account</h2>
         <form onsubmit=${handle(signIn)}>
-          <div>
-            <input type="text" id="username" name="username" placeholder="" autocomplete="off" required autofocus />
-            <label for="username">username</label>
-          </div>
+          <input type="text" name="username" placeholder="username" autocomplete="off" required autofocus />
 
-          <div>
-            <input type="password" id="pass" name="password" placeholder="" autocomplete="off" required />
-            <label for="pass">password</label>
-          </div>
-
-          <div>
-            <input type="text" id="turtlename" name="turtlename" placeholder="${name}" autocomplete="off" />
-            <label for="turtlename">turtlename</label>
-          </div>
+          <input type="password" name="password" placeholder="password" autocomplete="off" required />
 
           <input type="submit" value="Summon Turtle" />
+
+          <input type="checkbox" id="rememberme" name="rememberme"/>
+          <label for="rememberme">remember me?</label>
         </form>
       </section>
     `)}

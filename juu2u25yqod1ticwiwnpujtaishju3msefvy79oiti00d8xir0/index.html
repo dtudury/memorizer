@@ -8,28 +8,74 @@
     <link rel="icon" href="/tinker.svg" />
     <style>
       body {
-        margin: 0;
-        background: #666
+        margin: 0 0.5rem;
+        background: #666;
+        font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
       }
       details,
       section {
+        display: flex;
+        flex-flow: row wrap;
         border-radius: 1rem;
         border: 1px solid #444;
-        padding: 1rem;
-        margin: 1rem;
+        padding: 1rem 0;
+        margin: 1rem auto;
         background: linear-gradient(45deg, #ccc, #eee);
         box-shadow: 0 0 2rem #bbb;
+        max-width: 30rem;
+      }
+      h2 {
+        padding: 0 1rem;
+        margin: 0.5rem 0;
+      }
+      summary {
+        padding: 0 1rem;
+        width: 100%;
       }
       details[open] summary {
         border-bottom: 1px solid #444;
-        padding-bottom: 1rem;
+        padding: 0 1rem 1rem;
       }
+      form {
+        display: flex;
+        flex-flow: row wrap;
+        justify-content: center;
+      }
+
+      header {
+        display: flex;
+      }
+      .signout {
+        margin-left: auto;
+      }
+
+      input[type="submit"],
+      input[type="text"],
+      input[type="password"] {
+        padding: 1rem 1.5rem;
+        flex-basis: 100%;
+        border: none;
+        margin: 0.25rem 0;
+      }
+
+      input[type="submit"] {
+        background: #444;
+        color: #fff;
+      }
+
       button {
         border-radius: 1rem;
-        margin-top: 0.25rem;
+        margin: 0.25rem;
+        padding: 0.25rem 1rem;
+        border: 1px solid #bbb;
       }
       .toggleoff {
         background: transparent;
+      }
+      .answer,
+      .question {
+        text-align: center;
+        width: 100%;
       }
       .answer {
         font-size: 4rem;
@@ -38,7 +84,9 @@
         font-size: 1rem;
       }
       #answer {
-        position: relative;
+        position: sticky;
+        top: 0.25rem;
+        justify-content: center;
       }
       #answer .closebutton {
         position: absolute;
