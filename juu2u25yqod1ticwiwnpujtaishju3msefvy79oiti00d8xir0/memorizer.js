@@ -57,23 +57,83 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const {publicKey} = await signer.makeKeysFor(turtlename)
     state.workspace = await turtleDB.makeWorkspace(signer, turtlename)
     state.publicKey = publicKey
+    state.tags = proxyWithRecaller({}, recaller)
+    state.ts = new Date()
   }
 
-  const getHistory = () => state.workspace.lookup('document', 'value', 'history') || 
-    Object.keys(states).map(abbr => [
-      Object.assign({abbr, history: [], key: 'abbr', id: `${abbr}.abbr`}, states[abbr]),
-      Object.assign({abbr, history: [], key: 'capital', id: `${abbr}.capital`}, states[abbr])
-    ]).flat()
+  const getQuestions = () => state.workspace.lookup('document', 'value', 'questions') || 
+    [
+      ...Object.keys(states).map(abbr => {
+        const {name, capital} = states[abbr]
+        return [{
+          text: `${name}'s capital`, 
+          answer: capital, 
+          history: [], 
+          id: `${abbr}.capital`, 
+          tags: ['capital']
+        },{
+          text: `${name}'s abbreviation`, 
+          answer: abbr, 
+          history: [], 
+          id: `${abbr}.abbr`, 
+          tags: ['abbreviation']
+        }]
+      }), 
+      ...Array(11).keys().map(i => [
+        ...Array(i + 1).keys().map(j => {
+          const x = i + 2
+          const y = j + 2
+          return {
+            text: `${x} x ${y}`, 
+            answer: x * y, 
+            history: [], 
+            id: `${x}x${y}`, 
+            tags: ['multiplication']
+          }
+        })
+      ])
+    ].flat(2)
+  
+  const historyToTimeLeft = history => {
+    if (!history?.length) return Number.POSITIVE_INFINITY
+    const lastAnswer = history[history.length - 1]
+    let lastUnknownAnswer = history.findLast(({knew}) => !knew)
+    if (!lastUnknownAnswer) {
+      lastUnknownAnswer = {ts: new Date(history[0].ts.getTime() - 10 * 1000)}
+    }
+    const knownTime = Math.max(1000, lastAnswer.ts - lastUnknownAnswer.ts)
+    const timePassed = state.ts - lastAnswer.ts
+    if (timePassed > 0.7 * knownTime) return -timePassed / knownTime
+    return knownTime / timePassed
+  }
+  const displayHistory = history => {
+    if (!history?.length) return
+    const lastAnswer = history[history.length - 1]
+    let lastUnknownAnswer = history.findLast(({knew}) => !knew)
+    if (!lastUnknownAnswer) {
+      lastUnknownAnswer = {ts: new Date(history[0].ts.getTime() - 10 * 1000)}
+    }
+    const knownTime = Math.max(1000, lastAnswer.ts - lastUnknownAnswer.ts)
+    const timePassed = state.ts - lastAnswer.ts
+    return JSON.stringify({knownTime, timePassed, timeLeft: historyToTimeLeft(history)})
+  }
+  const getFilteredSortedQuestion = () => getQuestions().filter(({tags}) => tags.some(tag => !state.tags[tag])).sort((a, b) => {
+    return historyToTimeLeft(a.history) - historyToTimeLeft(b.history)
+  })
 
-  const sortedStates = el => {
-    const history = getHistory()
+  const questionList = el => {
+    const questions = getFilteredSortedQuestion()
     return h`
       <ol>
-        ${history.map(({name, key, id}) => {
-          const reveal = (e, el) => { state.revealed = id }
+        ${questions.map(({text, id, history}) => {
+          const showAnswer = (e, el) => { 
+            state.ts = new Date()
+            state.answerShown = id 
+          }
           return h`
             <li>
-              <button onclick=${handle(reveal)}>${name} ${key}</button>
+              <button onclick=${handle(showAnswer)}>${text}</button>
+              ${displayHistory(history)}
             </li>
           `
         })}
@@ -81,24 +141,84 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     `
   }
 
+  const clearFilters = (el, e) => {
+    state.ts = new Date()
+    for (const tag in state.tags) state.tags[tag] = false
+  }
+
   const selectedState = el => {
-    if (state.revealed) {
-      const selected = getHistory().find(q => q.id === state.revealed)
-      const unselect = (e, el) => { state.revealed = null}
-      return h`<section id="answer" onclick=${handle(unselect)}>${selected.name} ${selected.key}: ${selected[selected.key]}</section>`
+    const questions = getFilteredSortedQuestion()
+    if (!questions.length) {
+      return h`
+        <section id="answer" onclick=${handle(clearFilters)}>
+          <div class="answer">No Questions!</div>
+          <div class="question">Clear filters?</div>
+        </section>
+      `
+    } else if (state.answerShown) {
+      const selected = questions.find(q => q.id === state.answerShown)
+      const hideAnswer = (e, el) => { 
+        state.ts = new Date()
+        state.answerShown = null
+      }
+      const addHistory = knew => {
+        const questions = getQuestions()
+        const selected = questions.find(q => q.id === state.answerShown)
+        selected.history.push({knew, ts: new Date()})
+        const value = state.workspace.committedBranch.lookup('document', 'value') || {}
+        value.questions = questions
+        state.workspace.commit(value, `knew ${selected.id}: ${knew}`).then(() => {
+          state.ts = new Date()
+          state.answerShown = null
+        })
+      }
+      const stillLearningIt = (e, el) => addHistory(false)
+      const knewIt = (e, el) => addHistory(true)
+      return h`
+        <section id="answer">
+          <span class="closebutton" onclick=${handle(hideAnswer)}>✖</span>
+          <div class="answer">${selected?.answer}</div>
+          <div class="question">${selected?.text}</div>
+          <button onclick=${handle(stillLearningIt)}>still learning it</button>
+          <button onclick=${handle(knewIt)}>knew it</button>
+        </section>
+      `
     } else {
-      const selected = getHistory()[0]
-      const reveal = (e, el) => state.revealed = selected.id
-      return h`<section id="question" onclick=${handle(reveal)}> ${selected.name} ${selected.key}: ???</section>`
+      const selected = questions[0]
+      const showAnswer = (e, el) => {
+        state.ts = new Date()
+        state.answerShown = selected.id
+      }
+      return h`
+        <section id="question" onclick=${handle(showAnswer)}>
+          <div class="answer">???</div>
+          <div class="question">${selected.text}</div>
+        </section>
+      `
     }
+  }
+
+  const tagChooser = el => {
+    const tags = new Set(getQuestions().map(({tags}) => tags).flat())
+    return [...tags].map(tag => {
+      const toggleTag = (e, el) => {
+        state.ts = new Date()
+        state.tags[tag] = !state.tags[tag]
+        state.answerShown = null
+      }
+      return h`
+        <button class="tagtoggle toggle${(state.tags[tag] ? 'off' : 'on')}" onclick=${handle(toggleTag)}>${tag}</button>
+      `
+    })
   }
 
   renderer = render(document.body, h`
     ${showIfElse(() => !!state.workspace, h`
+      ${tagChooser}
       ${selectedState}
       <details id="questions">
         <summary>Questions</summary>
-        ${sortedStates}
+        ${questionList}
       </details>
     `, h`
       <section id="signin">

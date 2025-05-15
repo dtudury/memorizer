@@ -7,21 +7,48 @@
     <script type="module" src="memorizer.js"></script>
     <link rel="icon" href="/tinker.svg" />
     <style>
+      body {
+        margin: 0;
+        background: #666
+      }
       details,
       section {
         border-radius: 1rem;
-        border: 1px solid black;
+        border: 1px solid #444;
         padding: 1rem;
         margin: 1rem;
+        background: linear-gradient(45deg, #ccc, #eee);
+        box-shadow: 0 0 2rem #bbb;
       }
       details[open] summary {
-        border-bottom: 1px solid black;
+        border-bottom: 1px solid #444;
         padding-bottom: 1rem;
+      }
+      button {
+        border-radius: 1rem;
+        margin-top: 0.25rem;
+      }
+      .toggleoff {
+        background: transparent;
+      }
+      .answer {
+        font-size: 4rem;
+      }
+      .question {
+        font-size: 1rem;
+      }
+      #answer {
+        position: relative;
+      }
+      #answer .closebutton {
+        position: absolute;
+        top: 1rem;
+        right: 1rem;
       }
     </style>
   </head>
 
-  <body style="margin: 0; background: dimgray">
+  <body>
     <p>
       loading...
     </p>
