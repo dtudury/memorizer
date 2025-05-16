@@ -7,30 +7,43 @@
     <script type="module" src="memorizer.js"></script>
     <link rel="icon" href="/tinker.svg" />
     <style>
+      html {
+        background: #444;
+      }
       body {
-        margin: 0 0.5rem;
-        background: #666;
+        display: flex;
+        flex-flow: column nowrap;
+        min-height: 100vh;
+        margin: 0;
+        background: linear-gradient(#444, #555, #444);
         font-family: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji";
       }
       details,
       section {
         display: flex;
-        flex-flow: row wrap;
+        flex-flow: column nowrap;
+        align-content: start;
         border-radius: 1rem;
         border: 1px solid #444;
         padding: 1rem 0;
-        margin: 1rem auto;
+        margin: 4rem auto 0;
         background: linear-gradient(45deg, #ccc, #eee);
-        box-shadow: 0 0 2rem #bbb;
+        box-shadow: 0 0 4rem #999;
+        width: 100%;
         max-width: 30rem;
       }
       h2 {
         padding: 0 1rem;
         margin: 0.5rem 0;
       }
+      details:not([open]) {
+        background: transparent;
+        box-shadow: none;
+      }
       summary {
         padding: 0 1rem;
         width: 100%;
+        box-sizing: border-box;
       }
       details[open] summary {
         border-bottom: 1px solid #444;
@@ -44,9 +57,24 @@
 
       header {
         display: flex;
+        position: sticky;
+        top: 0;
+        background: linear-gradient(rgb(from #444 r g b / 0.75), #333);
+        padding: 0.5rem;
+      }
+      footer {
+        display: flex;
+        position: sticky;
+        bottom: 0;
+        margin-top: auto;
+        background: linear-gradient(#333, rgb(from #444 r g b / 0.75));
+        padding: 0.5rem;
       }
       .signout {
         margin-left: auto;
+      }
+      .info {
+        padding: 2rem 1rem;
       }
 
       input[type="submit"],
@@ -68,9 +96,12 @@
         margin: 0.25rem;
         padding: 0.25rem 1rem;
         border: 1px solid #bbb;
+        background: linear-gradient(#eee, #fff);
       }
+      .disabled,
       .toggleoff {
         background: transparent;
+        color: #888;
       }
       .answer,
       .question {
@@ -79,26 +110,55 @@
       }
       .answer {
         font-size: 4rem;
+        margin-top: 0.75rem;
       }
       .question {
         font-size: 1rem;
       }
-      #answer {
+      .card {
         position: sticky;
-        top: 0.25rem;
-        justify-content: center;
+        top: 3.375rem;
+        min-height: 9rem;
       }
       #answer .closebutton {
         position: absolute;
         top: 1rem;
         right: 1rem;
       }
+      #assessment {
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        margin-top: auto;
+      }
+      .stilllearningit {
+        background: #f44;
+        color: #fff;
+      }
+      .knewit {
+        background: #0f0;
+      }
+
+      svg {
+        display: block;
+        height: 2px;
+        width: calc(100% - 1rem);
+        background: #ddd;
+        margin: -0.1rem 1rem 0.1rem;
+      }
+      svg.overdue {
+        fill: #f44;
+      }
+      svg.notdue {
+        fill: #0f0;
+      }
+
     </style>
   </head>
 
   <body>
-    <p>
+    <section class="info">
       loading...
-    </p>
+    </section>
   </body>
 </html>

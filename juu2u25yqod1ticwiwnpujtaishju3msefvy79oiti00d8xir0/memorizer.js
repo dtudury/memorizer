@@ -15,7 +15,7 @@ const name = 'memorizer'
 const publicKey = window.location.pathname.match(/\/([0-9a-z]*)\//)?.[1] || 'juu2u25yqod1ticwiwnpujtaishju3msefvy79oiti00d8xir0' 
 const recaller = new Recaller(name)
 let renderer = render(document.body, h`
-  <p>connecting...</p>
+  <section class="info">connecting...</section>
 `, recaller, 'connecting')
 
 const turtleDB = new TurtleDB(name, recaller)
@@ -62,17 +62,17 @@ webSocketMuxFactory(turtleDB, async tbMux => {
       ...Object.keys(states).map(abbr => {
         const {name, capital} = states[abbr]
         return [{
-          text: `${name}'s Capital`, 
+          text: `${name}'s Capital:`, 
           answer: capital, 
           history: [], 
           id: `${abbr}.capital`, 
-          tags: ['Capital']
+          tags: ['Capitals']
         },{
-          text: `${name}'s Abbreviation`, 
+          text: `${name}'s Abbreviation:`, 
           answer: abbr, 
           history: [], 
           id: `${abbr}.abbr`, 
-          tags: ['Abbreviation']
+          tags: ['Abbreviations']
         }]
       }), 
       ...Array(11).keys().map(i => [
@@ -80,7 +80,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
           const x = i + 2
           const y = j + 2
           return {
-            text: `${x} x ${y}`, 
+            text: `${x} × ${y} =`, 
             answer: x * y, 
             history: [], 
             id: `${x}x${y}`, 
@@ -89,35 +89,68 @@ webSocketMuxFactory(turtleDB, async tbMux => {
         })
       ])
     ].flat(2)
+
+  const setQuestions = (questions, message = 'setQuestions') => {
+    const value = state.workspace.committedBranch.lookup('document', 'value') || {}
+    value.questions = questions
+    state.workspace.commit(value, message).then(() => {
+      state.ts = new Date()
+      state.answerShown = null
+    })
+  }
+
+  const getTags = () => state.workspace?.lookup?.('document', 'value', 'tags') ||
+    new Set(['Abbreviations', 'Multiplication'])
+
+  const setTags = tags => {
+    const value = state.workspace.committedBranch.lookup('document', 'value') || {}
+    value.tags = tags
+    state.workspace.commit(value, `knew ${selected.id}: ${knew}`).then(() => {
+      state.ts = new Date()
+      state.answerShown = null
+    })
+  }
   
-  const historyToTimeLeft = history => {
+  const historyToUrgency = history => {
     if (!history?.length) return Number.POSITIVE_INFINITY
     const lastAnswer = history[history.length - 1]
     let lastUnknownAnswer = history.findLast(({knew}) => !knew)
     if (!lastUnknownAnswer) {
-      lastUnknownAnswer = {ts: new Date(history[0].ts.getTime() - 10 * 1000)}
+      lastUnknownAnswer = {ts: new Date(history[0].ts.getTime() - 10000)}
     }
     const knownTime = Math.max(1000, lastAnswer.ts - lastUnknownAnswer.ts)
     const timePassed = state.ts - lastAnswer.ts
-    if (timePassed > 0.7 * knownTime) return -timePassed / knownTime
-    return knownTime / timePassed
+    if (timePassed > knownTime * 0.7) {
+      if (timePassed / knownTime > 60) return -1
+      return -Math.log(timePassed / knownTime)
+    }
+    return Math.log(knownTime / timePassed)
   }
 
   const displayHistory = history => {
     if (!history?.length) return
-    const lastAnswer = history[history.length - 1]
-    let lastUnknownAnswer = history.findLast(({knew}) => !knew)
-    if (!lastUnknownAnswer) {
-      lastUnknownAnswer = {ts: new Date(history[0].ts.getTime() - 10 * 1000)}
+    const urgency = historyToUrgency(history)
+    if (urgency < 0) {
+      const percent = `${Math.min(100, -urgency * 5)}%`
+      return h`
+        <svg class="overdue" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="${percent}" height="100%"/>
+        </svg>
+      `
+    } else {
+      const percent = `${Math.min(100, urgency * 5)}%`
+      return h`
+        <svg class="notdue" xmlns="http://www.w3.org/2000/svg">
+          <rect x="0" y="0" width="${percent}" height="100%"/>
+        </svg>
+      `
     }
-    const knownTime = Math.max(1000, lastAnswer.ts - lastUnknownAnswer.ts)
-    const timePassed = state.ts - lastAnswer.ts
-    return JSON.stringify({knownTime, timePassed, timeLeft: historyToTimeLeft(history)})
   }
 
-  const getFilteredSortedQuestion = () => getQuestions().filter(({tags}) => tags.some(tag => !state.tags[tag])).sort((a, b) => {
-    return historyToTimeLeft(a.history) - historyToTimeLeft(b.history)
-  })
+  const getFilteredSortedQuestion = () => getQuestions()
+    .map(question => Object.assign(question, { timeLeft: historyToUrgency(question.history) }))
+    .filter(({tags}) => tags.some(tag => !state.tags[tag]))
+    .sort((a, b) => a.timeLeft - b.timeLeft)
 
   const questionList = el => {
     const questions = getFilteredSortedQuestion()
@@ -130,7 +163,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
           }
           return h`
             <li>
-              <button onclick=${handle(showAnswer)}>${text}</button>
+              <button class=${historyToUrgency(history) === Number.POSITIVE_INFINITY ? 'disabled' : 'enabled'} onclick=${handle(showAnswer)}>${text}</button>
               ${displayHistory(history)}
             </li>
           `
@@ -148,9 +181,9 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const questions = getFilteredSortedQuestion()
     if (!questions.length) {
       return h`
-        <section id="answer" onclick=${handle(clearFilters)}>
-          <div class="answer">No Questions!</div>
-          <div class="question">Clear filters?</div>
+        <section id="answer" class="card" onclick=${handle(clearFilters)}>
+          <div class="answer">👀</div>
+          <div class="question">No questions found.</div>
         </section>
       `
     } else if (state.answerShown) {
@@ -163,22 +196,19 @@ webSocketMuxFactory(turtleDB, async tbMux => {
         const questions = getQuestions()
         const selected = questions.find(q => q.id === state.answerShown)
         selected.history.push({knew, ts: new Date()})
-        const value = state.workspace.committedBranch.lookup('document', 'value') || {}
-        value.questions = questions
-        state.workspace.commit(value, `knew ${selected.id}: ${knew}`).then(() => {
-          state.ts = new Date()
-          state.answerShown = null
-        })
+        setQuestions(questions, `knew ${selected.id}: ${knew}`)
       }
       const stillLearningIt = (e, el) => addHistory(false)
       const knewIt = (e, el) => addHistory(true)
       return h`
-        <section id="answer">
+        <section id="answer" class="card">
           <span class="closebutton" onclick=${handle(hideAnswer)}>✖</span>
-          <div class="answer">${selected?.answer}</div>
           <div class="question">${selected?.text}</div>
-          <button onclick=${handle(stillLearningIt)}>still learning it</button>
-          <button onclick=${handle(knewIt)}>knew it</button>
+          <div class="answer">${selected?.answer}</div>
+          <div id="assessment">
+            <button class="stilllearningit" onclick=${handle(stillLearningIt)}>still learning it</button>
+            <button class="knewit" onclick=${handle(knewIt)}>knew it</button>
+          </div>
         </section>
       `
     } else {
@@ -188,9 +218,9 @@ webSocketMuxFactory(turtleDB, async tbMux => {
         state.answerShown = selected.id
       }
       return h`
-        <section id="question" onclick=${handle(showAnswer)}>
-          <div class="answer">???</div>
+        <section id="question" class="card" onclick=${handle(showAnswer)}>
           <div class="question">${selected.text}</div>
+          <div class="answer">???</div>
         </section>
       `
     }
@@ -224,14 +254,16 @@ webSocketMuxFactory(turtleDB, async tbMux => {
   renderer = render(document.body, h`
     ${showIfElse(() => !!state.workspace, h`
       <header>
-      ${tagChooser}
-      ${settings}
+        ${settings}
       </header>
       ${selectedState}
       <details id="questions">
         <summary>Questions</summary>
         ${questionList}
       </details>
+      <footer>
+        ${tagChooser}
+      </footer>
     `, h`
       <section id="signin">
         <h2>Sign In or Create Your Account</h2>
