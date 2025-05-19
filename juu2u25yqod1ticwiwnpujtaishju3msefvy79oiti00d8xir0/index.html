@@ -24,9 +24,9 @@
         flex-flow: column nowrap;
         align-content: start;
         border-radius: 1rem;
-        border: 1px solid #444;
+        border: 1px solid #777;
         padding: 1rem 0;
-        margin: 4rem auto 0;
+        margin: 3rem auto;
         background: linear-gradient(45deg, #ccc, #eee);
         box-shadow: 0 0 4rem #999;
         width: 100%;
@@ -44,6 +44,7 @@
         padding: 0 1rem;
         width: 100%;
         box-sizing: border-box;
+        color: #777;
       }
       details[open] summary {
         border-bottom: 1px solid #444;
@@ -95,13 +96,20 @@
         border-radius: 1rem;
         margin: 0.25rem;
         padding: 0.25rem 1rem;
-        border: 1px solid #bbb;
-        background: linear-gradient(#eee, #fff);
+        border: 1px solid #eee;
+        background: linear-gradient(45deg, #eee, #ddd, #eee);
       }
       .disabled,
       .toggleoff {
-        background: transparent;
         color: #888;
+        background: rgb(from #fff r g b / 0.25);
+      }
+      .time {
+        font-size: small;
+        font-style: italic;
+      }
+      .expired .time {
+        color: #f44;
       }
       .answer,
       .question {
@@ -137,6 +145,23 @@
       }
       .knewit {
         background: #0f0;
+      }
+
+      .cardoption {
+        display: flex;
+        text-wrap-mode: nowrap;
+        align-items: center;
+        padding: 0.25rem 1rem;
+        background: #ccc;
+        margin: 0.25rem 0;
+      }
+      .cardoption button {
+        margin-left: 0.5rem
+      }
+
+      .enabled,
+      .disabled {
+        width: calc(100% - 2rem);
       }
 
       svg {

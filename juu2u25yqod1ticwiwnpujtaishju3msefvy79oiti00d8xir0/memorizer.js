@@ -36,7 +36,6 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const {publicKey} = await signer.makeKeysFor(name)
     state.workspace = await turtleDB.makeWorkspace(signer, name)
     state.publicKey = publicKey
-    state.tags = proxyWithRecaller({}, recaller)
     state.ts = new Date()
   }
 
@@ -57,7 +56,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     signIntoStatus(username, password)
   }
 
-  const getQuestions = () => state.workspace?.lookup?.('document', 'value', 'questions') || 
+  const getQuestions = () => state.workspace?.committedBranch?.lookup?.('document', 'value', 'questions') || 
     [
       ...Object.keys(states).map(abbr => {
         const {name, capital} = states[abbr]
@@ -91,28 +90,32 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     ].flat(2)
 
   const setQuestions = (questions, message = 'setQuestions') => {
-    const value = state.workspace.committedBranch.lookup('document', 'value') || {}
-    value.questions = questions
-    state.workspace.commit(value, message).then(() => {
-      state.ts = new Date()
-      state.answerShown = null
-    })
+    assignValueObject({questions}, message)
   }
 
-  const getTags = () => state.workspace?.lookup?.('document', 'value', 'tags') ||
+  const getTags = () => state.workspace?.committedBranch?.lookup?.('document', 'value', 'tags') ||
     new Set(['Abbreviations', 'Multiplication'])
 
   const setTags = tags => {
-    const value = state.workspace.committedBranch.lookup('document', 'value') || {}
-    value.tags = tags
-    state.workspace.commit(value, `knew ${selected.id}: ${knew}`).then(() => {
+    assignValueObject({tags}, 'setTags')
+  }
+
+  const getCardState = () => state.workspace?.committedBranch?.lookup?.('document', 'value', 'cardState') || {}
+
+  const setCardState = cardState => {
+    assignValueObject({cardState}, 'setCardState')
+  }
+
+  const assignValueObject = (obj, message) => {
+    const value = state.workspace?.committedBranch.lookup('document', 'value') || {}
+    Object.assign(value, obj)
+    state.workspace.commit(value, message).then(() => {
       state.ts = new Date()
-      state.answerShown = null
     })
   }
   
-  const historyToUrgency = history => {
-    if (!history?.length) return Number.POSITIVE_INFINITY
+  const parseHistory = history => {
+    if (!history?.length) return { urgency: Number.POSITIVE_INFINITY, t: Number.POSITIVE_INFINITY }
     const lastAnswer = history[history.length - 1]
     let lastUnknownAnswer = history.findLast(({knew}) => !knew)
     if (!lastUnknownAnswer) {
@@ -120,16 +123,17 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     }
     const knownTime = Math.max(1000, lastAnswer.ts - lastUnknownAnswer.ts)
     const timePassed = state.ts - lastAnswer.ts
+    let t = knownTime * 0.7 - timePassed
     if (timePassed > knownTime * 0.7) {
-      if (timePassed / knownTime > 60) return -1
-      return -Math.log(timePassed / knownTime)
+      if (timePassed / knownTime > 60) return { urgency: -1, t }
+      return { urgency: -Math.log(1 + timePassed / knownTime), t }
     }
-    return Math.log(knownTime / timePassed)
+    return { urgency: Math.log(1 + knownTime / timePassed), t }
   }
 
   const displayHistory = history => {
     if (!history?.length) return
-    const urgency = historyToUrgency(history)
+    const { urgency } = parseHistory(history)
     if (urgency < 0) {
       const percent = `${Math.min(100, -urgency * 5)}%`
       return h`
@@ -147,24 +151,50 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     }
   }
 
-  const getFilteredSortedQuestion = () => getQuestions()
-    .map(question => Object.assign(question, { timeLeft: historyToUrgency(question.history) }))
-    .filter(({tags}) => tags.some(tag => !state.tags[tag]))
-    .sort((a, b) => a.timeLeft - b.timeLeft)
+  const displayT = t => {
+    if (t === Number.POSITIVE_INFINITY) return ''
+    t = Math.abs(t)
+    let s = Math.floor(t / 1000)
+    let m = Math.floor(s / 60)
+    if (!m) return `${s} second${s !== 1 ? 's' : ''}`
+    s = (s % 60).toString().padStart(2, '0')
+    let h = Math.floor(m / 60)
+    if (!h) return `${m} minute${m !== 1 ? 's' : ''}`
+    m = (m % 60).toString().padStart(2, '0')
+    let d = Math.floor(h / 24)
+    if (!d) return `${h} hour${h !== 1 ? 's' : ''}`
+    h = (h % 60).toString().padStart(2, '0')
+    h %= 24
+    return `${d} day${d !== 1 ? 's' : ''}`
+  }
+
+  const getFilteredSortedQuestion = () => {
+    const savedTags = getTags()
+    return getQuestions()
+      .map(question => Object.assign(question, parseHistory(question.history)))
+      .filter(({tags}) => tags.some(tag => !savedTags.has(tag)))
+      .sort((a, b) => a.t - b.t)
+  }
 
   const questionList = el => {
     const questions = getFilteredSortedQuestion()
     return h`
       <ol>
-        ${questions.map(({text, id, history}) => {
-          const showAnswer = (e, el) => { 
+        ${questions.map(({text, id, history, t}) => {
+          const showCard = (e, el) => { 
             state.ts = new Date()
-            state.answerShown = id 
+            setCardState({ id })
           }
           return h`
             <li>
-              <button class=${historyToUrgency(history) === Number.POSITIVE_INFINITY ? 'disabled' : 'enabled'} onclick=${handle(showAnswer)}>${text}</button>
-              ${displayHistory(history)}
+              <button 
+                class="${t === Number.POSITIVE_INFINITY ? 'disabled' : 'enabled'} ${t <= 0 ? 'expired' : 'unexpired'}"
+                onclick=${handle(showCard)}
+              >
+                ${text}
+                <span class="time">${displayT(t)}</span>
+                ${displayHistory(history)}
+              </button>
             </li>
           `
         })}
@@ -174,11 +204,12 @@ webSocketMuxFactory(turtleDB, async tbMux => {
 
   const clearFilters = (el, e) => {
     state.ts = new Date()
-    for (const tag in state.tags) state.tags[tag] = false
+    setTags(new Set())
   }
 
-  const selectedState = el => {
+  const flashCard = el => {
     const questions = getFilteredSortedQuestion()
+    console.log(state.workspace?.index, questions)
     if (!questions.length) {
       return h`
         <section id="answer" class="card" onclick=${handle(clearFilters)}>
@@ -186,17 +217,19 @@ webSocketMuxFactory(turtleDB, async tbMux => {
           <div class="question">No questions found.</div>
         </section>
       `
-    } else if (state.answerShown) {
-      const selected = questions.find(q => q.id === state.answerShown)
+    } 
+    const cardState = getCardState()
+    if (cardState.id && cardState.answerShown) {
+      const selected = questions.find(q => q.id === cardState.id)
       const hideAnswer = (e, el) => { 
         state.ts = new Date()
-        state.answerShown = null
+        setCardState({})
       }
       const addHistory = knew => {
         const questions = getQuestions()
-        const selected = questions.find(q => q.id === state.answerShown)
+        const selected = questions.find(q => q.id === cardState.id)
         selected.history.push({knew, ts: new Date()})
-        setQuestions(questions, `knew ${selected.id}: ${knew}`)
+        assignValueObject({questions, cardState: {}}, `knew ${selected.id}: ${knew}`)
       }
       const stillLearningIt = (e, el) => addHistory(false)
       const knewIt = (e, el) => addHistory(true)
@@ -211,19 +244,59 @@ webSocketMuxFactory(turtleDB, async tbMux => {
           </div>
         </section>
       `
-    } else {
-      const selected = questions[0]
-      const showAnswer = (e, el) => {
-        state.ts = new Date()
-        state.answerShown = selected.id
-      }
-      return h`
-        <section id="question" class="card" onclick=${handle(showAnswer)}>
-          <div class="question">${selected.text}</div>
-          <div class="answer">???</div>
-        </section>
-      `
     }
+    let id = cardState.id
+    if(!id) {
+      const nextQuestion = questions[0]
+      const history = nextQuestion.history ?? []
+      if (nextQuestion.urgency <= 0 || history[history.length - 1]?.knew === false) {
+        id = nextQuestion.id
+      } else {
+        const nextUnknown = questions.find(({history}) => parseHistory(history).t === Number.POSITIVE_INFINITY)
+        const nextCard = (e, el) => { 
+          state.ts = new Date()
+          setCardState({ id: nextQuestion.id })
+        }
+        const newCard = (e, el) => { 
+          state.ts = new Date()
+          setCardState({ id: nextUnknown.id })
+        }
+        return h`
+          <section id="question" class="card">
+            <div class="answer">🎉 You did it! 🎉</div>
+            <div class="cardoption">
+              Next card:
+              <button class=${parseHistory(nextQuestion.history).t === Number.POSITIVE_INFINITY ? 'disabled' : 'enabled'} onclick=${handle(nextCard)}>
+                ${nextQuestion.text}
+                <span class="time">${displayT(nextQuestion.t)}</span>
+                ${displayHistory(nextQuestion.history)}
+              </button>
+            </div>
+            <div class="cardoption">
+              New card:
+              <button class=${parseHistory(nextUnknown?.history).t === Number.POSITIVE_INFINITY ? 'disabled' : 'enabled'} onclick=${handle(newCard)}>
+                ${nextUnknown?.text}
+                <span class="time">${displayT(nextUnknown?.t)}</span>
+                ${displayHistory(nextUnknown?.history)}
+              </button>
+            </div>
+          </section>
+        `
+      }
+    }
+
+    const selected = questions.find(q => q.id === id)
+    console.log(id, selected, questions)
+    const showAnswer = (e, el) => {
+      state.ts = new Date()
+      setCardState({id, answerShown: true})
+    }
+    return h`
+      <section id="question" class="card" onclick=${handle(showAnswer)}>
+        <div class="question">${selected.text}</div>
+        <div class="answer">???</div>
+      </section>
+    `
   }
 
   const tagChooser = el => {
@@ -231,11 +304,13 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     return [...tags].map(tag => {
       const toggleTag = (e, el) => {
         state.ts = new Date()
-        state.tags[tag] = !state.tags[tag]
-        state.answerShown = null
+        const savedTags = getTags()
+        if (savedTags.has(tag)) savedTags.delete(tag)
+        else savedTags.add(tag)
+        setTags(savedTags)
       }
       return h`
-        <button class="tagtoggle toggle${(state.tags[tag] ? 'off' : 'on')}" onclick=${handle(toggleTag)}>${tag}</button>
+        <button class="tagtoggle toggle${(getTags().has(tag) ? 'off' : 'on')}" onclick=${handle(toggleTag)}>${tag}</button>
       `
     })
   }
@@ -244,7 +319,6 @@ webSocketMuxFactory(turtleDB, async tbMux => {
     const signOut = (e, el) => {
       localStorage.clear()
       state.workspace = null
-      state.answerShown = null
     }
     return h`
       <button class="signout" onclick=${handle(signOut)}>Sign Out</button>
@@ -256,7 +330,7 @@ webSocketMuxFactory(turtleDB, async tbMux => {
       <header>
         ${settings}
       </header>
-      ${selectedState}
+      ${flashCard}
       <details id="questions">
         <summary>Questions</summary>
         ${questionList}
